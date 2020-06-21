@@ -1,14 +1,13 @@
 package ru.kazakovanet.coroutinejobs
 
 import android.os.Bundle
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.coroutines.CompletableJob
+import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -20,11 +19,50 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        job_button.setOnClickListener {
+            if (!::job.isInitialized) {
+                initJob()
+            }
+            job_progress_bar.startJobOrCancel(job)
+        }
     }
 
-    fun initJob() {
-        job_button.text = "Start Job#1"
-        job_complete_text.text = ""
+    fun ProgressBar.startJobOrCancel(job: Job) {
+        if (this.progress > 0) {
+            println("$job is already active. Cancelling...")
+            resetJob()
+        } else {
+            job_button.text = "Cancel Job #1"
+            CoroutineScope(IO + job).launch {
+                println("Coroutine $this is activated with job $job")
+
+                for (i in PROGRESS_START..PROGRESS_MAX) {
+                    delay((JOB_TIME / PROGRESS_MAX).toLong())
+                    this@startJobOrCancel.progress = i
+                }
+
+                updateJobCompleteTextView("Job is complete")
+            }
+        }
+    }
+
+    private fun updateJobCompleteTextView(text: String) {
+        GlobalScope.launch(Main) {
+            job_complete_text.text = text
+        }
+    }
+
+    private fun resetJob() {
+        if (job.isActive || job.isCompleted) {
+            job.cancel(CancellationException("Resetting job"))
+        }
+        initJob()
+    }
+
+    private fun initJob() {
+        job_button.text = "Start Job #1"
+        updateJobCompleteTextView("")
         job = Job()
         job.invokeOnCompletion {
             it?.message.let {
